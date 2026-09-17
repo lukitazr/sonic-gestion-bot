@@ -1,0 +1,33 @@
+# Docker Compose para UGREEN NAS (UGOS Pro - Pestaña 'Proyectos')
+# Utiliza la imagen oficial de Docker Hub (oven/bun:debian) sin requerir compilación local previa.
+
+services:
+  sonic-bot:
+    image: oven/bun:debian
+    container_name: sonic-gestion-bot
+    restart: unless-stopped
+    working_dir: /app
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/data/production.db
+      - RESET_DB_ON_START=false
+      - DEV_RESET_DB=false
+    volumes:
+      - ./:/app
+      - sonic_data:/app/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    command: >
+      sh -c "apt-get update -y && apt-get install -y openssl ca-certificates && bun install && bunx prisma db push --skip-generate && exec bun run index.js"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  sonic_data:
+    driver: local
+

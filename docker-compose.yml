@@ -1,0 +1,27 @@
+services:
+  sonic-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sonic-gestion-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/data/production.db
+      - RESET_DB_ON_START=false
+      - DEV_RESET_DB=false
+    volumes:
+      - sonic_data:/app/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  sonic_data:
+    driver: local

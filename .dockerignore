@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log
+bun.lock*
+.git
+.gitignore
+.dockerignore
+tests
+*.db
+*.db-journal
+*.log
+.env
+.env.local
+.DS_Store
+README-*.md
+coverage
+tmp
+
