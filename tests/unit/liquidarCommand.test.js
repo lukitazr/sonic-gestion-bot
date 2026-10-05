@@ -187,15 +187,16 @@ describe('Milestone 5: Liquidar Command, Ayuda Command & Ready Event (Unit Tests
       expect(breakdown).toContain('BIN_ED_EXEC');
       expect(breakdown).toContain('act_exec@pay.com');
 
-      // 4. Verify participant DMs are NOT sent upon calculation (deferred until marked as PAID)
-      expect(userDMs.size).toBe(0);
-
-      // 5. When marked as PAID via pagarCommand, verify DMs ARE dispatched to participants
-      await pagarCommand.run(mockClient, mockMessage, ['man_exec_vid'], '!');
+      // 4. Verify participant DMs inform of period completion & Saturday payment upon calculation
       expect(userDMs.size).toBe(2);
       expect(userDMs.has('ed_man_exec')).toBe(true);
       expect(userDMs.has('act_man_exec')).toBe(true);
+      expect(userDMs.get('ed_man_exec').embeds[0].data.description).toContain('sábado');
+
+      // 5. When marked as PAID via pagarCommand, verify payment completion DMs are dispatched to participants
+      await pagarCommand.run(mockClient, mockMessage, ['man_exec_vid'], '!');
       expect(userDMs.get('ed_man_exec').embeds[0].data.title).toContain('Pago Realizado');
+      expect(userDMs.get('act_man_exec').embeds[0].data.title).toContain('Pago Realizado');
     });
   });
 

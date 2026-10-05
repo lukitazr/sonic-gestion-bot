@@ -268,7 +268,15 @@ export class SchedulerService {
             }
           }
 
-          // Nota: Los DMs a los participantes/talentos se envían cuando el video es marcado como PAGADO (!pagar o botón), no durante el cálculo.
+          // Despachar DMs de cumplimiento de período a actores y editores informando que se les pagará el sábado
+          if (typeof NotificationService.sendSettlementDMs === 'function') {
+            await NotificationService.sendSettlementDMs(activeClient, {
+              ...settlement,
+              videoRecord: updatedVideoRecord
+            }).catch(err => {
+              console.warn('[SchedulerService] Error enviando DMs de cumplimiento de periodo:', err);
+            });
+          }
         } catch (notifyErr) {
           console.warn('[SchedulerService] Advertencia en envío de notificaciones de liquidación:', notifyErr);
         }
@@ -448,7 +456,15 @@ export class SchedulerService {
               }
             }
 
-            // Nota: Los DMs a los participantes/talentos se envían cuando el video es marcado como PAGADO (!pagar o botón), no durante el cálculo.
+            // Despachar DMs de cumplimiento de período a actores y editores informando que se les pagará el sábado
+            if (typeof NotificationService.sendSettlementDMs === 'function') {
+              await NotificationService.sendSettlementDMs(activeClient, {
+                ...settlement,
+                videoRecord: updatedVideoRecord
+              }).catch(err => {
+                console.warn('[SchedulerService] Error enviando DMs de cumplimiento de periodo:', err);
+              });
+            }
           } catch (notifyErr) {
             console.warn('[SchedulerService] Advertencia en envío de notificaciones de liquidación:', notifyErr);
           }

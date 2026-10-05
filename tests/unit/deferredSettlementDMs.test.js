@@ -131,7 +131,7 @@ describe('Deferred Settlement DMs: Admin Alert on 5-Day Calculation & Talent DMs
     YouTubeService.clearMocks();
   });
 
-  it('1. should alert admin channel upon 5-day calculation and NOT send DMs to participants yet', async () => {
+  it('1. should alert admin channel upon 5-day calculation and send period completion DMs to participants', async () => {
     // Register a pending video whose scheduled date has matured (5 days ago)
     const fiveDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000);
     const video = await VideoService.registerVideo({
@@ -159,13 +159,16 @@ describe('Deferred Settlement DMs: Admin Alert on 5-Day Calculation & Talent DMs
     expect(adminMsg.embeds[0].data.title).toContain('Orden de Pago');
     expect(adminMsg.embeds[0].data.fields.some(f => f.name === '📊 Vistas Finales')).toBe(true);
 
-    // 1.2 Verify that NO DMs were sent to participants during calculation
-    expect(sentUserDMs.get(TEST_EDITOR_ID)).toBeUndefined();
-    expect(sentUserDMs.get(TEST_ACTOR_1_ID)).toBeUndefined();
-    expect(sentUserDMs.get(TEST_ACTOR_2_ID)).toBeUndefined();
+    // 1.2 Verify that DMs were sent to participants informing of period completion and Saturday payment
+    expect(sentUserDMs.get(TEST_EDITOR_ID)?.length).toBe(1);
+    expect(sentUserDMs.get(TEST_ACTOR_1_ID)?.length).toBe(1);
+    expect(sentUserDMs.get(TEST_ACTOR_2_ID)?.length).toBe(1);
+
+    const editorDM = sentUserDMs.get(TEST_EDITOR_ID)[0];
+    expect(editorDM.embeds[0].data.description).toContain('sábado');
   });
 
-  it('2. should alert admin channel on settleVideo (!liquidar) and NOT send DMs to participants', async () => {
+  it('2. should alert admin channel on settleVideo (!liquidar) and send period completion DMs to participants', async () => {
     const video = await VideoService.registerVideo({
       youtubeUrl: `https://www.youtube.com/watch?v=${TEST_YT_VIDEO_ID}`,
       editorDiscordId: TEST_EDITOR_ID,
@@ -177,9 +180,9 @@ describe('Deferred Settlement DMs: Admin Alert on 5-Day Calculation & Talent DMs
     expect(result.videoRecord.status).toBe('CALCULATED');
     expect(adminChannelMessages.length).toBe(1);
 
-    // No DMs to editor or actor yet
-    expect(sentUserDMs.get(TEST_EDITOR_ID)).toBeUndefined();
-    expect(sentUserDMs.get(TEST_ACTOR_1_ID)).toBeUndefined();
+    // Period completion DMs sent to editor and actor
+    expect(sentUserDMs.get(TEST_EDITOR_ID)?.length).toBe(1);
+    expect(sentUserDMs.get(TEST_ACTOR_1_ID)?.length).toBe(1);
   });
 
   it('3. should dispatch private payment DMs to all participants when marked as PAID via !pagar command', async () => {
@@ -191,7 +194,7 @@ describe('Deferred Settlement DMs: Admin Alert on 5-Day Calculation & Talent DMs
     });
 
     await SchedulerService.settleVideo(video.id, mockClient);
-    expect(sentUserDMs.size).toBe(0); // Still 0 DMs
+    expect(sentUserDMs.get(TEST_EDITOR_ID)?.length).toBe(1); // 1 period completion DM
 
     // Execute !pagar command by Admin
     let replyPayload = null;
@@ -212,22 +215,22 @@ describe('Deferred Settlement DMs: Admin Alert on 5-Day Calculation & Talent DMs
     const dbVideo = await prisma.videoRecord.findUnique({ where: { id: video.id } });
     expect(dbVideo.status).toBe('PAID');
 
-    // 3.2 Verify participants received the payment completed DMs
-    expect(sentUserDMs.has(TEST_EDITOR_ID)).toBe(true);
-    expect(sentUserDMs.has(TEST_ACTOR_1_ID)).toBe(true);
-    expect(sentUserDMs.has(TEST_ACTOR_2_ID)).toBe(true);
+    // 3.2 Verify participants received the payment completed DMs (second message)
+    expect(sentUserDMs.get(TEST_EDITOR_ID)?.length).toBe(2);
+    expect(sentUserDMs.get(TEST_ACTOR_1_ID)?.length).toBe(2);
+    expect(sentUserDMs.get(TEST_ACTOR_2_ID)?.length).toBe(2);
 
-    const editorDM = sentUserDMs.get(TEST_EDITOR_ID)[0];
-    expect(editorDM.embeds[0].data.title).toContain('Pago Realizado');
-    expect(editorDM.embeds[0].data.description).toContain('ha completado y transferido tu pago');
-    expect(editorDM.embeds[0].data.fields.some(f => f.name === '🎭 Tu Rol' && f.value === '🎬 Editor')).toBe(true);
-    expect(editorDM.embeds[0].data.fields.some(f => f.name === '💰 Monto Total Transferido')).toBe(true);
-    expect(editorDM.embeds[0].data.fields.some(f => f.name === '💳 Cuenta de Destino' && f.value.includes('editor@paypal.com'))).toBe(true);
+    const editorPaymentDM = sentUserDMs.get(TEST_EDITOR_ID)[1];
+    expect(editorPaymentDM.embeds[0].data.title).toContain('Pago Realizado');
+    expect(editorPaymentDM.embeds[0].data.description).toContain('ha completado y transferido tu pago');
+    expect(editorPaymentDM.embeds[0].data.fields.some(f => f.name === '🎭 Tu Rol' && f.value === '🎬 Editor')).toBe(true);
+    expect(editorPaymentDM.embeds[0].data.fields.some(f => f.name === '💰 Monto Total Transferido')).toBe(true);
+    expect(editorPaymentDM.embeds[0].data.fields.some(f => f.name === '💳 Cuenta de Destino' && f.value.includes('editor@paypal.com'))).toBe(true);
 
-    const actorDM = sentUserDMs.get(TEST_ACTOR_1_ID)[0];
-    expect(actorDM.embeds[0].data.title).toContain('Pago Realizado');
-    expect(actorDM.embeds[0].data.fields.some(f => f.name === '🎭 Tu Rol' && f.value === '🎭 Actor')).toBe(true);
-    expect(actorDM.embeds[0].data.fields.some(f => f.name === '💳 Cuenta de Destino' && f.value.includes('actor1@paypal.com'))).toBe(true);
+    const actorPaymentDM = sentUserDMs.get(TEST_ACTOR_1_ID)[1];
+    expect(actorPaymentDM.embeds[0].data.title).toContain('Pago Realizado');
+    expect(actorPaymentDM.embeds[0].data.fields.some(f => f.name === '🎭 Tu Rol' && f.value === '🎭 Actor')).toBe(true);
+    expect(actorPaymentDM.embeds[0].data.fields.some(f => f.name === '💳 Cuenta de Destino' && f.value.includes('actor1@paypal.com'))).toBe(true);
   });
 
   it('4. should dispatch private payment DMs to all participants when marked as PAID via order_btn_mark_paid button', async () => {
@@ -239,7 +242,7 @@ describe('Deferred Settlement DMs: Admin Alert on 5-Day Calculation & Talent DMs
     });
 
     await SchedulerService.settleVideo(video.id, mockClient);
-    expect(sentUserDMs.size).toBe(0);
+    expect(sentUserDMs.get(TEST_EDITOR_ID)?.length).toBe(1);
 
     // Simulate Admin clicking "Marcar como Pagado" button on Discord
     let updatedInteraction = null;
@@ -276,13 +279,13 @@ describe('Deferred Settlement DMs: Admin Alert on 5-Day Calculation & Talent DMs
 
     // 4.2 Verify ephemeral followUp was sent
     expect(followUpPayload).not.toBeNull();
-    expect(followUpPayload.content).toContain('Aviso a Talentos');
+    expect(followUpPayload.content).toContain('Aviso a');
 
     // 4.3 Verify DMs were sent to participants
-    expect(sentUserDMs.has(TEST_EDITOR_ID)).toBe(true);
-    expect(sentUserDMs.has(TEST_ACTOR_1_ID)).toBe(true);
+    expect(sentUserDMs.get(TEST_EDITOR_ID)?.length).toBe(2);
+    expect(sentUserDMs.get(TEST_ACTOR_1_ID)?.length).toBe(2);
 
-    const edDM = sentUserDMs.get(TEST_EDITOR_ID)[0];
+    const edDM = sentUserDMs.get(TEST_EDITOR_ID)[1];
     expect(edDM.embeds[0].data.title).toContain('Pago Realizado');
   });
 

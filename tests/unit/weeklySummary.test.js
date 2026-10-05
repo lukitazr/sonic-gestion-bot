@@ -232,7 +232,7 @@ describe('Weekly Summary System (Resúmenes Semanales con Pre-cálculo y Ping @e
   });
 
   it('4. getWeeklyCalculatedVideos should only include calculated videos in the weekly window and exclude pending future videos', async () => {
-    const summaryDate = new Date('2026-09-18T20:00:00.000Z');
+    const summaryDate = new Date();
 
     // Create 1 calculated video within this week
     const v1 = await VideoService.registerVideo({
@@ -251,7 +251,7 @@ describe('Weekly Summary System (Resúmenes Semanales con Pre-cálculo y Ping @e
     await prisma.videoRecord.update({
       where: { id: v2.id },
       data: {
-        scheduledCalculationAt: new Date('2026-09-25T12:00:00.000Z')
+        scheduledCalculationAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       }
     });
 
@@ -318,7 +318,7 @@ describe('Weekly Summary System (Resúmenes Semanales con Pre-cálculo y Ping @e
   });
 
   it('6. executeWeeklySummary should dispatch message with @everyone ping and allowedMentions', async () => {
-    const summaryDate = new Date('2026-09-18T20:00:00.000Z');
+    const summaryDate = new Date();
 
     // Register and mature a video on the same day
     const v = await VideoService.registerVideo({
@@ -328,7 +328,7 @@ describe('Weekly Summary System (Resúmenes Semanales con Pre-cálculo y Ping @e
     });
     await prisma.videoRecord.update({
       where: { id: v.id },
-      data: { scheduledCalculationAt: new Date('2026-09-18T18:00:00.000Z') }
+      data: { scheduledCalculationAt: new Date(Date.now() - 60000) }
     });
 
     const result = await WeeklySummaryService.executeWeeklySummary(mockClient, {
@@ -460,7 +460,7 @@ describe('Weekly Summary System (Resúmenes Semanales con Pre-cálculo y Ping @e
     expect(result.success).toBe(true);
     expect(result.messageId).toBeDefined();
 
-    const dmMsg = sentMessages.find(m => m.id?.startsWith('dm_'));
+    const dmMsg = sentMessages.find(m => m.id === result.messageId);
     expect(dmMsg).toBeDefined();
     expect(dmMsg.content).toContain('Resumen Semanal de Liquidaciones');
     expect(dmMsg.embeds.length).toBe(1);

@@ -527,7 +527,7 @@ export class NotificationService {
       .setTitle('🎉 Liquidación de Video Completada')
       .setColor(EMBED_COLORS.SUCCESS)
       .setDescription(
-        `¡Hola! Se ha completado el período de seguimiento de **5 días** para tu video y se ha calculado tu liquidación final.`
+        `¡Hola! Un video en el que participaste como **${roleName}** ha cumplido su período de seguimiento y ya se calculó cuánto ganarás por este video. **Este monto se te pagará el sábado por mensaje directo (MD).**`
       )
       .addFields(
         {
@@ -566,12 +566,12 @@ export class NotificationService {
           inline: false
         },
         {
-          name: 'ℹ️ Estado del Pago',
-          value: 'La orden de pago ha sido generada y remitida a la administración con enlaces de checkout directo. Tu transferencia será realizada a la brevedad posible según las cuentas indicadas.',
+          name: '📅 Fecha y Vía de Pago',
+          value: 'El video ha cumplido su período de seguimiento y el monto fue calculado. **Se te pagará el sábado por mensaje directo (MD) / transferencia.**',
           inline: false
         }
       )
-      .setFooter({ text: 'Sonic Gestión Bot • Notificaciones de Liquidación' })
+      .setFooter({ text: 'Sonic Gestión Bot • Notificación de Cumplimiento de Periodo' })
       .setTimestamp();
 
     if (thumbnailUrl) {

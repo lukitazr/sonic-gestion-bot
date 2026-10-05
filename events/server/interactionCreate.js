@@ -17,6 +17,7 @@ import {
 } from 'discord.js';
 import { TalentService } from '../../src/services/talentService.js';
 import { VideoService } from '../../src/services/videoService.js';
+import { prisma } from '../../src/database/prisma.js';
 import { YouTubeService } from '../../src/services/youtubeService.js';
 import { ConfigService } from '../../src/services/configService.js';
 import { NotificationService } from '../../src/services/notificationService.js';
@@ -623,11 +624,116 @@ export default {
             page: safePage,
             config
           });
-          const components = WeeklySummaryService.buildWeeklySummaryComponents(safePage, totalPages);
+          const components = WeeklySummaryService.buildWeeklySummaryComponents(safePage, totalPages, videos);
 
           return await interaction.update({
             embeds: [embed],
             components
+          });
+        }
+
+        // ==========================================
+        // Resumen Semanal: Marcar Todos como Pagados
+        // ==========================================
+        if (customId === 'summary_action:mark_all_paid' || customId.startsWith('summary_action:mark_all_paid')) {
+          const isAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ||
+                          interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+                          !interaction.guild;
+
+          if (interaction.guild && !isAdmin) {
+            return await interaction.reply({
+              content: '❌ Solo los administradores pueden marcar los videos como pagados.',
+              ephemeral: true
+            });
+          }
+
+          await interaction.deferReply({ ephemeral: true });
+
+          const config = await ConfigService.getConfig();
+          const videos = await WeeklySummaryService.getWeeklyCalculatedVideos(new Date());
+          const calculatedVideos = videos.filter(v => v.status === 'CALCULATED');
+
+          if (calculatedVideos.length === 0) {
+            return await interaction.editReply({
+              content: 'ℹ️ No hay videos pendientes de pago en este período (todos ya se encuentran marcados como PAGADOS).'
+            });
+          }
+
+          let updatedCount = 0;
+          let notifiedDMs = 0;
+
+          for (const vid of calculatedVideos) {
+            try {
+              // 1. Actualizar estado a PAID en BD
+              const updatedRecord = await prisma.videoRecord.update({
+                where: { id: vid.id },
+                data: { status: 'PAID' },
+                include: {
+                  editor: true,
+                  participants: {
+                    include: {
+                      talent: true
+                    }
+                  }
+                }
+              });
+
+              updatedCount++;
+
+              // 2. Despachar DMs de pago completado a actores y editores
+              if (typeof NotificationService.sendPaymentCompletionDMs === 'function') {
+                const dmResult = await NotificationService.sendPaymentCompletionDMs(client, {
+                  videoRecord: updatedRecord,
+                  adminUser: interaction.user,
+                  config
+                }).catch(err => {
+                  console.warn(`[Interaction] Error enviando DMs de pago para ${vid.id}:`, err);
+                  return { sent: [] };
+                });
+                if (dmResult?.sent?.length) {
+                  notifiedDMs += dmResult.sent.length;
+                }
+              }
+
+              // 3. Actualizar la orden de pago en canal admin si existe
+              if (updatedRecord.adminMessageId && typeof NotificationService.updateAdminPaymentOrderPaid === 'function') {
+                const adminChannelId = config.adminChannelId || process.env.ADMIN_CHANNEL_ID;
+                if (adminChannelId) {
+                  await NotificationService.updateAdminPaymentOrderPaid(
+                    client,
+                    adminChannelId,
+                    updatedRecord.adminMessageId,
+                    updatedRecord,
+                    interaction.user?.tag || interaction.user?.username || 'Administración'
+                  ).catch(() => null);
+                }
+              }
+            } catch (vidErr) {
+              console.error(`[Interaction] Error marcando video ${vid.id} como pagado:`, vidErr);
+            }
+          }
+
+          // Refrescar embed del resumen
+          const refreshedVideos = await WeeklySummaryService.getWeeklyCalculatedVideos(new Date());
+          const totalPages = Math.max(1, refreshedVideos.length);
+          const updatedEmbed = WeeklySummaryService.buildWeeklySummaryPage({
+            videos: refreshedVideos,
+            page: 1,
+            config
+          });
+          const updatedComponents = WeeklySummaryService.buildWeeklySummaryComponents(1, totalPages, refreshedVideos);
+
+          try {
+            await interaction.message.edit({
+              embeds: [updatedEmbed],
+              components: updatedComponents
+            });
+          } catch (editErr) {
+            console.warn('[Interaction] No se pudo editar el mensaje del resumen semanal:', editErr);
+          }
+
+          return await interaction.editReply({
+            content: `✅ **¡Periodo Liquidado con Éxito!**\nSe marcaron **${updatedCount}** video(s) como \`PAGADO\` y se enviaron **${notifiedDMs}** notificaciones por DM a los actores y editores correspondientes.`
           });
         }
 

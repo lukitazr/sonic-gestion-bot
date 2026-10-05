@@ -276,13 +276,14 @@ export class WeeklySummaryService {
   }
 
   /**
-   * Builds the pagination component ActionRow.
+   * Builds the pagination component ActionRow and action buttons (e.g. Marcar Todos como Pagados).
    *
    * @param {number} currentPage - 1-indexed current page
    * @param {number} totalPages - Total pages
+   * @param {Array<Object>} [videos=null] - Videos in the current period to calculate unpaid counts
    * @returns {Array<ActionRowBuilder>}
    */
-  static buildWeeklySummaryComponents(currentPage = 1, totalPages = 1) {
+  static buildWeeklySummaryComponents(currentPage = 1, totalPages = 1, videos = null) {
     const prevPage = Math.max(1, currentPage - 1);
     const nextPage = Math.min(totalPages, currentPage + 1);
 
@@ -304,8 +305,23 @@ export class WeeklySummaryService {
       .setStyle(ButtonStyle.Primary)
       .setDisabled(currentPage >= totalPages);
 
-    const row = new ActionRowBuilder().addComponents(prevBtn, pageIndicator, nextBtn);
-    return [row];
+    const navRow = new ActionRowBuilder().addComponents(prevBtn, pageIndicator, nextBtn);
+
+    if (Array.isArray(videos)) {
+      const unpaidCount = videos.filter(v => v.status === 'CALCULATED').length;
+      const allPaid = videos.length > 0 && unpaidCount === 0;
+
+      const markAllPaidBtn = new ButtonBuilder()
+        .setCustomId('summary_action:mark_all_paid')
+        .setLabel(allPaid ? '✅ Periodo Pagado' : `✅ Marcar Todos como Pagados${unpaidCount > 0 ? ` (${unpaidCount})` : ''}`)
+        .setStyle(allPaid ? ButtonStyle.Secondary : ButtonStyle.Success)
+        .setDisabled(allPaid || videos.length === 0);
+
+      const actionRow = new ActionRowBuilder().addComponents(markAllPaidBtn);
+      return [navRow, actionRow];
+    }
+
+    return [navRow];
   }
 
   /**
@@ -349,7 +365,7 @@ export class WeeklySummaryService {
         page: 1,
         config
       });
-      const components = this.buildWeeklySummaryComponents(1, totalPages);
+      const components = this.buildWeeklySummaryComponents(1, totalPages, videos);
 
       const sentDM = await targetUser.send({
         content: '📩 **[Resumen Semanal de Liquidaciones]** Aquí tienes el reporte semanal oficial y los datos de pago:',
@@ -470,7 +486,7 @@ export class WeeklySummaryService {
       page: 1,
       config
     });
-    const components = this.buildWeeklySummaryComponents(1, totalPages);
+    const components = this.buildWeeklySummaryComponents(1, totalPages, videos);
 
     // Step 6: Dispatch with @everyone mention
     const messagePayload = {
